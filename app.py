@@ -55,26 +55,28 @@ def callback():
         return "Invalid signature", 400
 
     return "OK", 200
-
+    
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
     user_id = event.source.user_id
-    user_message = event.message.text.strip()
+    user_message = event.message.text.strip().upper()  # 統一轉大寫
 
-    if user_message.lower() in ["開始", "new game", "restart"]:
-        # 重新開始遊戲
+    if user_message in ["開始", "NEW GAME", "RESTART"]:
         possible_numbers = generate_possible_numbers()
-        first_guess = get_next_guess(possible_numbers)
+        first_guess = random.choice(possible_numbers)
         user_games[user_id] = {
             "possible_numbers": possible_numbers,
             "last_guess": first_guess
         }
         reply_text = f"請在心中選一個 4 位不重複的數字！\n\n我的第一個猜測是：{first_guess}\n請回覆「XA YB」，例如「1A2B」"
     elif user_id in user_games:
-        # 解析 A B 數值
-        if "A" in user_message and "B" in user_message:
-            try:
-                a, b = map(int, user_message.lower().replace("a", "").replace("b", "").split())
+        # 嘗試解析 A B 數值
+        try:
+            import re
+            match = re.match(r"(\d)A(\d)B", user_message)  # 確保格式為 2A1B
+            if match:
+                a, b = map(int, match.groups())
+
                 game_data = user_games[user_id]
                 last_guess = game_data["last_guess"]
                 possible_numbers = game_data["possible_numbers"]
@@ -88,16 +90,16 @@ def handle_message(event):
                     if not possible_numbers:
                         reply_text = "😵 這個 A B 可能有錯誤，請確認你的回應！"
                     else:
-                        new_guess = get_next_guess(possible_numbers)
+                        new_guess = random.choice(possible_numbers)
                         user_games[user_id] = {
                             "possible_numbers": possible_numbers,
                             "last_guess": new_guess
                         }
                         reply_text = f"我的下一個猜測是：{new_guess}\n請回覆「XA YB」，例如「1A2B」"
-            except ValueError:
-                reply_text = "請輸入正確的格式，例如「1A2B」"
-        else:
-            reply_text = "請回覆「XA YB」，例如「1A2B」，讓我繼續猜！"
+            else:
+                reply_text = "❌ 請輸入正確的格式，例如「1A2B」，不要有空格或錯誤的符號。"
+        except Exception as e:
+            reply_text = "❌ 發生錯誤，請確保輸入格式為「XA YB」，例如「1A2B」。"
     else:
         reply_text = "輸入「開始」，讓我來猜你的 4 位數字！"
 
@@ -105,6 +107,7 @@ def handle_message(event):
         event.reply_token,
         TextSendMessage(text=reply_text)
     )
+
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
